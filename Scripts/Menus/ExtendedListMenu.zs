@@ -1064,7 +1064,9 @@ class ExtendedLoadMenu : LoadMenu
 			screen.DrawTexture(controls, true, screen.GetWidth() / 2 - size.x * CleanXfac / 2, screen.GetHeight() - size.y * CleanyFac, DTA_CleanNoMove, true, DTA_DestWidth, int(size.x * CleanXfac), DTA_DestHeight, int(size.y * CleanYfac), DTA_Alpha, initialalpha);
 		}
 
+		HideEngineRows();
 		Super.Drawer();
+		DrawSaveRows();
 
 		screen.Dim(fadecolor, fadealpha * initialalpha, 0, 0, screen.GetWidth(), screen.GetHeight());
 	}
@@ -1103,24 +1105,23 @@ class ExtendedLoadMenu : LoadMenu
 				}
 			}
 		}
-		else if (ev.Type == UIEvent.Type_WheelUp)
-		{
-			if (TopItem > 0) TopItem--;
-			return true;
-		}
-		else if (ev.Type == UIEvent.Type_WheelDown)
-		{
-			if (TopItem < manager.SavegameCount() - listboxRows) TopItem++;
-			return true;
-		}
+		else if (ScrollRows(ev)) { return true; }
+
 		return Super.OnUIEvent(ev);
 	}
 
 	override bool MenuEvent (int mkey, bool fromcontroller)
 	{
+		if (MoveSelection(mkey)) { return true; }
+
 		if (!mParentMenu && mkey == MKEY_Back) { GameHandler.ChangeMusic("*"); }
 
 		return Super.MenuEvent(mkey, fromcontroller);
+	}
+
+	override bool MouseEvent(int type, int x, int y)
+	{
+		return ClickRow(type, x, y) || Super.MouseEvent(type, x, y);
 	}
 }
 
@@ -1193,7 +1194,9 @@ class ExtendedSaveMenu : SaveMenu
 			screen.DrawTexture(controls, true, screen.GetWidth() / 2 - size.x * CleanXfac / 2, screen.GetHeight() - size.y * CleanyFac, DTA_CleanNoMove, true, DTA_DestWidth, int(size.x * CleanXfac), DTA_DestHeight, int(size.y * CleanYfac), DTA_Alpha, initialalpha);
 		}
 
+		HideEngineRows();
 		Super.Drawer();
+		DrawSaveRows();
 
 		screen.Dim(fadecolor, fadealpha, 0, 0, screen.GetWidth(), screen.GetHeight());
 	}
@@ -1232,21 +1235,20 @@ class ExtendedSaveMenu : SaveMenu
 				}
 			}
 		}
-		else if (ev.Type == UIEvent.Type_WheelUp)
-		{
-			if (TopItem > 0) TopItem--;
-			return true;
-		}
-		else if (ev.Type == UIEvent.Type_WheelDown)
-		{
-			if (TopItem < manager.SavegameCount() - listboxRows) TopItem++;
-			return true;
-		}
+		else if (ScrollRows(ev)) { return true; }
+
 		return Super.OnUIEvent(ev);
+	}
+
+	override bool MouseEvent(int type, int x, int y)
+	{
+		return ClickRow(type, x, y) || Super.MouseEvent(type, x, y);
 	}
 
 	override bool MenuEvent (int mkey, bool fromcontroller)
 	{
+		if (MoveSelection(mkey)) { return true; }
+
 		if (Super.MenuEvent(mkey, fromcontroller))
 		{
 			if (mkey == MKEY_Back && !mParentMenu) { GameHandler.ChangeMusic("*"); }

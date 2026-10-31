@@ -237,8 +237,9 @@ class LifeHandler : StaticEventHandler
 			persistent.lives[e.playernumber] = lives[e.playernumber];
 		}
 
-		SaveInfo.RecordAutosave();
 		Level.MakeAutoSave();
+		SaveInfo.RequestAutosave();
+		SaveInfo.RequestAutosave();
 	}
 
 	override void PlayerDied(PlayerEvent e)
