@@ -146,6 +146,14 @@ class SaveInfo : StaticEventHandler
 		return at < 0 ? "" : info.Left(at);
 	}
 
+	static clearscope String MapOf(String info)
+	{
+		Array<String> parts;
+		info.Split(parts, "|");
+
+		return parts.Size() > 1 ? parts[1] : "";
+	}
+
 	static clearscope String Describe(String info)
 	{
 		Array<String> parts;
@@ -161,6 +169,8 @@ class SaveInfo : StaticEventHandler
 
 mixin class SaveListInfo
 {
+	const ROWLINES = 2; // Each save has its name and, under it, what it is
+
 	Array<int> rows; // The saves listed: all at the title, the running game's in a level
 	int toprow;
 	bool filtering;
@@ -194,7 +204,12 @@ mixin class SaveListInfo
 
 		// Whatever was selected may have just been filtered out or deleted
 		if (Selected >= 0 && rows.Find(Selected) == rows.Size()) { SelectRow(rows.Size() ? 0 : -1); }
-		toprow = clamp(toprow, 0, max(0, rows.Size() - listboxRows));
+		toprow = clamp(toprow, 0, max(0, rows.Size() - RowsShown()));
+	}
+
+	int RowsShown()
+	{
+		return max(1, listboxRows / ROWLINES);
 	}
 
 	void SelectRow(int row)
@@ -204,7 +219,7 @@ mixin class SaveListInfo
 		if (row >= 0)
 		{
 			if (row < toprow) { toprow = row; }
-			else if (row >= toprow + listboxRows) { toprow = row - listboxRows + 1; }
+			else if (row >= toprow + RowsShown()) { toprow = row - RowsShown() + 1; }
 		}
 
 		manager.UnloadSaveData();
@@ -224,9 +239,9 @@ mixin class SaveListInfo
 		else if (mkey == MKEY_Down) { row = none ? toprow : (row + 1) % rows.Size(); }
 		else
 		{
-			int last = max(0, rows.Size() - listboxRows);
-			if (mkey == MKEY_PageDown) { toprow = toprow >= last ? 0 : min(toprow + listboxRows, last); }
-			else { toprow = toprow == 0 ? last : max(toprow - listboxRows, 0); }
+			int last = max(0, rows.Size() - RowsShown());
+			if (mkey == MKEY_PageDown) { toprow = toprow >= last ? 0 : min(toprow + RowsShown(), last); }
+			else { toprow = toprow == 0 ? last : max(toprow - RowsShown(), 0); }
 			row = toprow;
 		}
 
@@ -240,7 +255,7 @@ mixin class SaveListInfo
 	{
 		if (x < listboxLeft || x >= listboxLeft + listboxWidth || y < listboxTop || y >= listboxTop + listboxHeight) { return false; }
 
-		int row = toprow + (y - listboxTop) / rowHeight;
+		int row = toprow + (y - listboxTop) / (rowHeight * ROWLINES);
 		if (row >= rows.Size())
 		{
 			Selected = -1;
@@ -256,7 +271,7 @@ mixin class SaveListInfo
 	bool ScrollRows(UIEvent ev)
 	{
 		if (ev.Type == UIEvent.Type_WheelUp) { toprow = max(toprow - 1, 0); return true; }
-		if (ev.Type == UIEvent.Type_WheelDown) { toprow = min(toprow + 1, max(0, rows.Size() - listboxRows)); return true; }
+		if (ev.Type == UIEvent.Type_WheelDown) { toprow = min(toprow + 1, max(0, rows.Size() - RowsShown())); return true; }
 
 		return false;
 	}
@@ -285,41 +300,51 @@ mixin class SaveListInfo
 		}
 
 		let store = SaveInfo.Get();
-		for (int i = 0; i < listboxRows && toprow + i < rows.Size(); i++)
+		for (int i = 0; i < RowsShown() && toprow + i < rows.Size(); i++)
 		{
 			int s = rows[toprow + i];
 			SaveGameNode node = manager.GetSavegame(s);
 			if (!node) { continue; }
 
 			int colr = node.bOldVersion ? Font.CR_RED : node.bMissingWads ? Font.CR_YELLOW : s == Selected ? Font.CR_WHITE : Font.CR_TAN;
-			double y = (listboxTop + rowHeight * i + FontScale) / FontScale;
+			int top = listboxTop + rowHeight * ROWLINES * i;
+			double y = (top + FontScale) / FontScale;
 
-			screen.SetClipRect(listboxLeft, listboxTop + rowHeight * i, listboxRight, listboxTop + rowHeight * (i + 1));
-
-			if (s == Selected) { screen.Clear(listboxLeft, listboxTop + rowHeight * i, listboxRight, listboxTop + rowHeight * (i + 1), mEntering ? Color(255, 255, 0, 0) : Color(255, 0, 0, 255)); }
+			if (s == Selected) { screen.Clear(listboxLeft, top, listboxRight, top + rowHeight * ROWLINES, mEntering ? Color(255, 255, 0, 0) : Color(255, 0, 0, 255)); }
 
 			if (s == Selected && mEntering)
 			{
 				String typed = mInput.GetText() .. NewConsoleFont.GetCursor();
 				int length = int(NewConsoleFont.StringWidth(typed) * FontScale);
 				int displacement = min(0, listboxWidth - 2 - length);
+				screen.SetClipRect(listboxLeft, top, listboxRight, top + rowHeight);
 				screen.DrawText(NewConsoleFont, Font.CR_WHITE, (listboxLeft + 1 + displacement) / FontScale, y, typed, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
+				screen.ClearClipRect();
 			}
-			else
-			{
-				screen.DrawText(NewConsoleFont, colr, (listboxLeft + 1) / FontScale, y, node.SaveTitle, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
+			else { screen.DrawText(NewConsoleFont, colr, (listboxLeft + 1) / FontScale, y, FitRow(node.SaveTitle), DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true); }
 
-				// At the title all the games are listed, so say whose each one is
-				String game = !filtering && store && store.known.CheckKey(node.Filename) ? SaveInfo.GameOf(store.known.Get(node.Filename)) : "";
-				if (game.length())
-				{
-					int gamewidth = int(NewConsoleFont.StringWidth(game) * FontScale);
-					screen.DrawText(NewConsoleFont, Font.CR_DARKGRAY, (listboxRight - 2 - gamewidth) / FontScale, y, game, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
-				}
-			}
+			// Under it the map, and whose it is at the title, where all the games are listed
+			String info = store && store.known.CheckKey(node.Filename) ? store.known.Get(node.Filename) : "";
+			if (!info.length()) { continue; }
 
-			screen.ClearClipRect();
+			String subtitle = SaveInfo.MapOf(info);
+			if (!filtering && SaveInfo.GameOf(info).length()) { subtitle = SaveInfo.GameOf(info) .. " - " .. subtitle; }
+			subtitle = FitRow(subtitle);
+
+			int width = int(NewConsoleFont.StringWidth(subtitle) * FontScale);
+			screen.DrawText(NewConsoleFont, s == Selected ? Font.CR_GRAY : Font.CR_DARKGRAY, (listboxRight - 2 - width) / FontScale, y + rowHeight / FontScale, subtitle, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
 		}
+	}
+
+	// Clipping doesn't reach text drawn to a virtual size
+	String FitRow(String text)
+	{
+		int room = listboxWidth - 4;
+		if (NewConsoleFont.StringWidth(text) * FontScale <= room) { return text; }
+
+		while (text.Length() && NewConsoleFont.StringWidth(text .. "...") * FontScale > room) { text.DeleteLastCharacter(); }
+
+		return text .. "...";
 	}
 
 	void ShowSaveInfo()
