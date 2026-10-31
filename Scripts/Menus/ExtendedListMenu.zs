@@ -997,6 +997,8 @@ class SkillMenu : StaticIconListMenu
 
 class ExtendedLoadMenu : LoadMenu
 {
+	mixin SaveListInfo;
+
 	TextureID controls, bkg;
 	double yoffset;
 
@@ -1024,6 +1026,8 @@ class ExtendedLoadMenu : LoadMenu
 		fadecolor = Game.GetFadeColor(self);
 
 		GameHandler.ChangeMusic("WONDERIN");
+
+		ReadSaveInfo();
 	}
 
 	void SetYOffsets(double yoffset)
@@ -1068,6 +1072,8 @@ class ExtendedLoadMenu : LoadMenu
 	override void Ticker()
 	{
 		Super.Ticker();
+
+		ShowSaveInfo();
 
 		if (gametic > GameTicRate)
 		{
@@ -1120,6 +1126,8 @@ class ExtendedLoadMenu : LoadMenu
 
 class ExtendedSaveMenu : SaveMenu
 {
+	mixin SaveListInfo;
+
 	TextureID controls, bkg;
 	double yoffset;
 
@@ -1147,6 +1155,8 @@ class ExtendedSaveMenu : SaveMenu
 		fadecolor = Game.GetFadeColor(self);
 
 		GameHandler.ChangeMusic("WONDERIN");
+
+		ReadSaveInfo();
 	}
 
 	void SetYOffsets(double yoffset)
@@ -1191,6 +1201,8 @@ class ExtendedSaveMenu : SaveMenu
 	override void Ticker()
 	{
 		Super.Ticker();
+
+		ShowSaveInfo();
 
 		if (gametic > GameTicRate)
 		{
@@ -1241,7 +1253,11 @@ class ExtendedSaveMenu : SaveMenu
 			return true;
 		}
 
-		if (mkey == MKEY_Input) { GameHandler.ChangeMusic("*"); }
+		if (mkey == MKEY_Input)
+		{
+			mSaveName = mSaveName .. SaveInfo.SEPARATOR .. SaveInfo.Current();
+			GameHandler.ChangeMusic("*");
+		}
 		return false;
 	}
 }

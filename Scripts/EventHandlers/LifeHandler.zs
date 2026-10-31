@@ -237,6 +237,7 @@ class LifeHandler : StaticEventHandler
 			persistent.lives[e.playernumber] = lives[e.playernumber];
 		}
 
+		SaveInfo.RecordAutosave();
 		Level.MakeAutoSave();
 	}
 
