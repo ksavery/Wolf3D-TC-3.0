@@ -8,7 +8,7 @@
 class SaveInfo : StaticEventHandler
 {
 	const SEPARATOR = "\x1F";
-	const KEEPAUTOSAVES = 4; // For each game
+	const KEEPSAVES = 4; // Of each game's autosaves, and of its quicksaves
 	const AUTOSAVEDELAY = 35; // Tics into a level, clear of the engine's own autosave
 
 	ui Map<String, String> known; // By file name
@@ -48,36 +48,46 @@ class SaveInfo : StaticEventHandler
 	{
 		if (gamestate != GS_LEVEL || Menu.GetCurrentMenu()) { return; }
 
-		// A quicksave reuses the title it's saving over
-		SavegameManager manager = SavegameManager.GetManager();
-		if (manager.quickSaveSlot && !(gametic % GameTicRate))
-		{
-			// (Only one of these: it's a placeholder while the slot is being picked)
-			for (int s = 0; s < manager.SavegameCount(); s++)
-			{
-				SaveGameNode node = manager.GetSavegame(s);
-				if (node == manager.quickSaveSlot) { node.SaveTitle = Tagged(node.SaveTitle); }
-			}
-		}
-
 		if (autosaveswritten == autosaves || level.maptime < AUTOSAVEDELAY) { return; }
 		autosaveswritten = autosaves;
 
 		if (multiplayer || disableautosave >= 2) { return; }
 
+		WriteSave("Autosave");
+	}
+
+	// The engine's quicksave goes over whichever save was made last, autosaves
+	// included, and asks first. This makes a new one, as with autosaves
+	override bool InputProcess(InputEvent e)
+	{
+		if (e.Type != InputEvent.Type_KeyDown || gamestate != GS_LEVEL || multiplayer) { return false; }
+
+		int key1, key2;
+		[key1, key2] = Bindings.GetKeysForCommand("quicksave");
+		if (e.KeyScan != key1 && e.KeyScan != key2) { return false; }
+
+		if (players[consoleplayer].health > 0) { WriteSave("Quicksave"); }
+
+		return true;
+	}
+
+	// A new save of this game's, in place of its oldest of this kind once it has them all
+	ui void WriteSave(String kind)
+	{
 		MapHandler handler = MapHandler.Get();
 		if (!handler || !handler.curmap) { return; }
 
+		SavegameManager manager = SavegameManager.GetManager();
 		manager.ReadSaveStrings();
 		ReadTitles(manager);
 
-		// The oldest of this game's, once it has them all
 		int count, oldest = -1;
 		String oldesttitle;
 		for (int s = 0; s < manager.SavegameCount(); s++)
 		{
 			SaveGameNode node = manager.GetSavegame(s);
-			if (!node || !IsAutosave(node) || !known.CheckKey(node.Filename) || !(GameOf(known.Get(node.Filename)) ~== handler.gametitle)) { continue; }
+			if (!node || IsEngineAutosave(node) || node.SaveTitle.Left(kind.Length()) != kind) { continue; }
+			if (!known.CheckKey(node.Filename) || !(GameOf(known.Get(node.Filename)) ~== handler.gametitle)) { continue; }
 
 			count++;
 			if (oldest < 0 || node.SaveTitle < oldesttitle)
@@ -87,10 +97,11 @@ class SaveInfo : StaticEventHandler
 			}
 		}
 
-		String title = Tagged("Autosave " .. SystemTime.Format("%Y-%m-%d %H:%M:%S", SystemTime.Now()));
+		String title = Tagged(kind .. " " .. SystemTime.Format("%Y-%m-%d %H:%M:%S", SystemTime.Now()));
+
 		// Row 0 of the list is always the new save, and that needs to exist
 		manager.InsertNewSaveNode();
-		manager.DoSave(count >= KEEPAUTOSAVES ? oldest + 1 : 0, title);
+		manager.DoSave(count >= KEEPSAVES ? oldest + 1 : 0, title);
 		manager.RemoveNewSaveNode();
 	}
 
@@ -100,11 +111,6 @@ class SaveInfo : StaticEventHandler
 		int at = title.IndexOf(SEPARATOR);
 
 		return (at < 0 ? title : title.Left(at)) .. SEPARATOR .. Current();
-	}
-
-	static ui bool IsAutosave(SaveGameNode node)
-	{
-		return node.SaveTitle.Left(9) == "Autosave ";
 	}
 
 	// The engine's own: auto00.zds and so on
