@@ -20,7 +20,7 @@ class SaveInfo : StaticEventHandler
 		return SaveInfo(StaticEventHandler.Find("SaveInfo"));
 	}
 
-	// game|map|level tics|total tics
+	// game|map|level tics|total tics|level number
 	static clearscope String Current()
 	{
 		MapHandler handler = MapHandler.Get();
@@ -35,7 +35,7 @@ class SaveInfo : StaticEventHandler
 		}
 		mapname.Replace("|", "/");
 
-		return String.Format("%s|%s|%i|%i", handler ? handler.gametitle : "", mapname, level.maptime, level.totaltime);
+		return String.Format("%s|%s|%i|%i|%i", handler ? handler.gametitle : "", mapname, level.maptime, level.totaltime, map ? map.mapnum % 100 : 0);
 	}
 
 	static void RequestAutosave()
@@ -150,8 +150,11 @@ class SaveInfo : StaticEventHandler
 	{
 		Array<String> parts;
 		info.Split(parts, "|");
+		if (parts.Size() < 2) { return ""; }
 
-		return parts.Size() > 1 ? parts[1] : "";
+		int number = parts.Size() > 4 ? parts[4].ToInt() : 0;
+
+		return number ? String.Format("Level %i - %s", number, parts[1]) : parts[1];
 	}
 
 	static clearscope String Describe(String info)
@@ -160,7 +163,7 @@ class SaveInfo : StaticEventHandler
 		info.Split(parts, "|");
 		if (parts.Size() < 4) { return ""; }
 
-		String text = parts[1] .. "\n";
+		String text = MapOf(info) .. "\n";
 		if (parts[0].length()) { text = parts[0] .. "\n" .. text; }
 
 		return text .. "Level time: " .. FormatTime(parts[2].ToInt()) .. "\nTotal time: " .. FormatTime(parts[3].ToInt());
@@ -169,11 +172,12 @@ class SaveInfo : StaticEventHandler
 
 mixin class SaveListInfo
 {
-	const ROWLINES = 2; // Each save has its name and, under it, what it is
+	const ROWLINES = 2; // Each save has what it is and, under it, its name
 
-	Array<int> rows; // The saves listed: all at the title, the running game's in a level
+	Array<int> rows; // The saves listed: the running or picked game's, or all before one is picked
 	int toprow;
 	bool filtering;
+	bool mixedgames;
 
 	void ReadSaveInfo()
 	{
@@ -186,20 +190,31 @@ mixin class SaveListInfo
 	// Saves from before these details can't be told apart, so they stay listed
 	void ListSaves()
 	{
+		// The game running, or the one picked in the menus before starting it
 		MapHandler handler = MapHandler.Get();
-		filtering = gamestate == GS_LEVEL && handler && handler.curmap;
+		String game;
+		filtering = true;
+		if (gamestate == GS_LEVEL && handler && handler.curmap) { game = handler.gametitle; }
+		else if (GameExtension.Find(g_modgame)) { game = GameExtension.Find(g_modgame).Title(g_modgame.MakeUpper()); }
+		else { filtering = false; }
 
 		let store = SaveInfo.Get();
 		rows.Clear();
+		mixedgames = false;
+		String listed;
 		for (int s = 0; s < manager.SavegameCount(); s++)
 		{
 			SaveGameNode node = manager.GetSavegame(s);
 			if (!node || SaveInfo.IsEngineAutosave(node)) { continue; }
 
 			String info = store && store.known.CheckKey(node.Filename) ? store.known.Get(node.Filename) : "";
-			if (filtering && info.length() && !(SaveInfo.GameOf(info) ~== handler.gametitle)) { continue; }
+			if (filtering && info.length() && !(SaveInfo.GameOf(info) ~== game)) { continue; }
 
 			rows.Push(s);
+
+			if (!info.length()) { continue; }
+			if (listed.length() && !(SaveInfo.GameOf(info) ~== listed)) { mixedgames = true; }
+			listed = SaveInfo.GameOf(info);
 		}
 
 		// Whatever was selected may have just been filtered out or deleted
@@ -308,7 +323,8 @@ mixin class SaveListInfo
 
 			int colr = node.bOldVersion ? Font.CR_RED : node.bMissingWads ? Font.CR_YELLOW : s == Selected ? Font.CR_WHITE : Font.CR_TAN;
 			int top = listboxTop + rowHeight * ROWLINES * i;
-			double y = (top + FontScale) / FontScale;
+			double y = (top + FontScale) / FontScale; // What it is
+			double titley = y + rowHeight / FontScale; // Then its name
 
 			if (s == Selected) { screen.Clear(listboxLeft, top, listboxRight, top + rowHeight * ROWLINES, mEntering ? Color(255, 255, 0, 0) : Color(255, 0, 0, 255)); }
 
@@ -317,22 +333,21 @@ mixin class SaveListInfo
 				String typed = mInput.GetText() .. NewConsoleFont.GetCursor();
 				int length = int(NewConsoleFont.StringWidth(typed) * FontScale);
 				int displacement = min(0, listboxWidth - 2 - length);
-				screen.SetClipRect(listboxLeft, top, listboxRight, top + rowHeight);
-				screen.DrawText(NewConsoleFont, Font.CR_WHITE, (listboxLeft + 1 + displacement) / FontScale, y, typed, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
+				screen.SetClipRect(listboxLeft, top + rowHeight, listboxRight, top + rowHeight * ROWLINES);
+				screen.DrawText(NewConsoleFont, Font.CR_WHITE, (listboxLeft + 1 + displacement) / FontScale, titley, typed, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
 				screen.ClearClipRect();
 			}
-			else { screen.DrawText(NewConsoleFont, colr, (listboxLeft + 1) / FontScale, y, FitRow(node.SaveTitle), DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true); }
+			else { screen.DrawText(NewConsoleFont, colr, (listboxLeft + 1) / FontScale, titley, FitRow(node.SaveTitle), DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true); }
 
-			// Under it the map, and whose it is at the title, where all the games are listed
+			// The map, and whose it is if the list has more than one game's
 			String info = store && store.known.CheckKey(node.Filename) ? store.known.Get(node.Filename) : "";
 			if (!info.length()) { continue; }
 
 			String subtitle = SaveInfo.MapOf(info);
-			if (!filtering && SaveInfo.GameOf(info).length()) { subtitle = SaveInfo.GameOf(info) .. " - " .. subtitle; }
+			if (mixedgames && SaveInfo.GameOf(info).length()) { subtitle = GameExtension.GetShortTitle(SaveInfo.GameOf(info)) .. " - " .. subtitle; }
 			subtitle = FitRow(subtitle);
 
-			int width = int(NewConsoleFont.StringWidth(subtitle) * FontScale);
-			screen.DrawText(NewConsoleFont, s == Selected ? Font.CR_GRAY : Font.CR_DARKGRAY, (listboxRight - 2 - width) / FontScale, y + rowHeight / FontScale, subtitle, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
+			screen.DrawText(NewConsoleFont, s == Selected ? Font.CR_GRAY : Font.CR_DARKGRAY, (listboxLeft + 1) / FontScale, y, subtitle, DTA_VirtualWidthF, vwidth, DTA_VirtualHeightF, vheight, DTA_KeepRatio, true);
 		}
 	}
 
@@ -351,8 +366,16 @@ mixin class SaveListInfo
 	{
 		ListSaves();
 
+		// Nothing listed, so nothing to preview either
+		if (!rows.Size())
+		{
+			manager.UnloadSaveData();
+			BrokenSaveComment = NewConsoleFont.BreakLines("", int(commentWidth / FontScale));
+			return;
+		}
+
 		let store = SaveInfo.Get();
-		if (!store || !rows.Size()) { return; }
+		if (!store) { return; }
 
 		// Until a row is picked the comment is the first one's
 		int shown = Selected < 0 ? rows[0] : Selected;
