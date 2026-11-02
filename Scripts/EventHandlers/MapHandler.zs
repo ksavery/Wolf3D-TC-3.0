@@ -418,6 +418,7 @@ class MapHandler : StaticEventHandler
 {
 	int builtstyle;
 	bool startingnewgame;
+	String gametitle; // For saves: what the running extension game is called
 	WolfMapParser parsedmaps;
 	Array<DataFile> datafiles;
 	ParsedMap curmap, queuedmap, secretmapnext;
@@ -638,6 +639,9 @@ class MapHandler : StaticEventHandler
 	// For saves, which don't keep this handler
 	void RecordParsedMap()
 	{
+		GameExtension ex = curmap ? GameExtension.Find(curmap.extension) : null;
+		gametitle = ex ? ex.Title(curmap.extension.MakeUpper()) : "";
+
 		let saved = PersistentMapStatsHandler(EventHandler.Find("PersistentMapStatsHandler"));
 		if (!saved) { return; }
 
@@ -722,7 +726,7 @@ class MapHandler : StaticEventHandler
 			break;
 		}
 
-		if (saved && saved.nextmapnum) { queuedmap = parsedmaps.GetMapDataByNumber(saved.nextmapnum, curmap.datafile.path); }
+		if (saved && saved.nextmapnum && saved.nextmapnum != saved.mapnum) { queuedmap = parsedmaps.GetMapDataByNumber(saved.nextmapnum, curmap.datafile.path); }
 		if (!queuedmap) { QueueNextMap(); }
 		if (queuedmap) { level.nextmap = "Level"; }
 
@@ -775,6 +779,12 @@ class MapHandler : StaticEventHandler
 			LevelInfo nextinfo = LevelInfo.FindLevelInfo(nextmap);
 			if (nextinfo) { queuedmap = parsedmaps.GetMapDataByNumber(nextinfo.levelnum, curmap.datafile.path); }
 			level.nextmap = "Level";
+		}
+		else if (nextmap.length())
+		{
+			// The game ends here: anything left queued would go round this map again
+			queuedmap = null;
+			level.nextmap = nextmap;
 		}
 	}
 
