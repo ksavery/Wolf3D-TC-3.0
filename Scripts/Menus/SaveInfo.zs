@@ -14,6 +14,7 @@ class SaveInfo : StaticEventHandler
 	ui Map<String, String> known; // By file name
 	int autosaves; // Levels entered
 	ui int autosaveswritten;
+	ui int quietsave; // Autosaves don't say "Game saved." until this tic
 
 	static clearscope SaveInfo Get()
 	{
@@ -53,6 +54,7 @@ class SaveInfo : StaticEventHandler
 
 		if (multiplayer || disableautosave >= 2) { return; }
 
+		quietsave = gametic + GameTicRate; // It's done by the next tic or so
 		WriteSave("Autosave");
 	}
 
