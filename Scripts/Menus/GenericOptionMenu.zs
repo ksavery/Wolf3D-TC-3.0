@@ -180,6 +180,8 @@ class GenericOptionMenu : OptionMenu
 				else if (i < 0) { i = FirstSelectable(); }
 			}
 
+			if (!mDesc.mItems[i].Visible()) { continue; } // An item can hide itself (OptionMenuItem.Visible)
+
 			ItemInfo info = DrawItemType(mDesc.mItems[i], x, y, indent, fnt, mDesc.mSelectedItem == i, scale);
 
 			if (info)

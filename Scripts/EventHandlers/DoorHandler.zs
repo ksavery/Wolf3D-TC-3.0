@@ -264,6 +264,9 @@ class DoorEffector: PolyobjectEffector
 
 		Counter = Delay; // Reset the countdown
 
+		// The doorway line closes an open door; closing switches it off, so switch it back on
+		if (PlaneLine) { PlaneLine.activation = SPAC_Use | SPAC_UseBack | SPAC_UseThrough; }
+
 		// Move the polyobject to destination
 		Polyobject.MoveTo(Activator, Destination, Speed, 0);  // SNDSEQ sound 0 for opening
 
