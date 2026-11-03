@@ -156,7 +156,7 @@ class ExtendedOptionMenu : GenericOptionMenu
 					mDesc.mSelectedItem = mDesc.mItems.Size() - 1;
 				}
 			}
-			while (!mDesc.mItems[mDesc.mSelectedItem].Selectable() && mDesc.mSelectedItem != startedAt);
+			while (!(mDesc.mItems[mDesc.mSelectedItem].Selectable() && mDesc.mItems[mDesc.mSelectedItem].Visible()) && mDesc.mSelectedItem != startedAt);
 			break;
 
 		case MKEY_Down:
@@ -190,7 +190,7 @@ class ExtendedOptionMenu : GenericOptionMenu
 					}
 				}
 			}
-			while (!mDesc.mItems[mDesc.mSelectedItem].Selectable() && mDesc.mSelectedItem != startedAt);
+			while (!(mDesc.mItems[mDesc.mSelectedItem].Selectable() && mDesc.mItems[mDesc.mSelectedItem].Visible()) && mDesc.mSelectedItem != startedAt);
 			break;
 
 		case MKEY_PageUp:
@@ -205,7 +205,7 @@ class ExtendedOptionMenu : GenericOptionMenu
 				if (mDesc.mSelectedItem != -1)
 				{
 					mDesc.mSelectedItem = mDesc.mScrollTop + mDesc.mScrollPos + 1;
-					while (!mDesc.mItems[mDesc.mSelectedItem].Selectable())
+					while (!(mDesc.mItems[mDesc.mSelectedItem].Selectable() && mDesc.mItems[mDesc.mSelectedItem].Visible()))
 					{
 						if (++mDesc.mSelectedItem >= mDesc.mItems.Size())
 						{
@@ -233,7 +233,7 @@ class ExtendedOptionMenu : GenericOptionMenu
 				if (mDesc.mSelectedItem != -1)
 				{
 					mDesc.mSelectedItem = mDesc.mScrollTop + mDesc.mScrollPos;
-					while (!mDesc.mItems[mDesc.mSelectedItem].Selectable())
+					while (!(mDesc.mItems[mDesc.mSelectedItem].Selectable() && mDesc.mItems[mDesc.mSelectedItem].Visible()))
 					{
 						if (++mDesc.mSelectedItem >= mDesc.mItems.Size())
 						{
