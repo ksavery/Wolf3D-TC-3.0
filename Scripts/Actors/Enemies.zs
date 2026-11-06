@@ -24,6 +24,8 @@ class ClassicBase : Actor
 {
 	int scoreamt;
 	int skillhealth0, skillhealth1, skillhealth2, skillhealth3;
+	transient int facemask; // FacingFrames(), worked out once
+	transient bool facingknown;
 	int targetswitchdelay;
 	String basesprite;
 	SpriteID spr;
@@ -204,12 +206,15 @@ class ClassicBase : Actor
 		if (multiplayer && targetswitchdelay > 0) { targetswitchdelay--; }
 	}
 
-	// Attack and pain frames face the player unless extra rotations are wanted
+	// Attack and pain frames face the player unless extra rotations are wanted.
+	// By frame as well as by state: a frame can show from elsewhere (a subclass's
+	// own pain state that goes on into the inherited one, or the freeze when the
+	// player dies), and a game's art may have no other views of it
 	void SetSpriteRotation()
 	{
 		if (
 			!multiplayer && players[consoleplayer].mo &&
-			(bOptionalRotations || InStateSequence(CurState, MissileState) || InStateSequence(CurState, ResolveState("Pain"))) &&
+			(bOptionalRotations || InStateSequence(CurState, MissileState) || InStateSequence(CurState, ResolveState("Pain")) || (frame < 32 && FacingFrames() & (1 << frame))) &&
 			!g_userotations
 		)
 		{
@@ -219,6 +224,34 @@ class ClassicBase : Actor
 		{
 			spriterotation = 0;
 		}
+	}
+
+	// The frames of the attack and pain states that walking and standing never use
+	int FacingFrames()
+	{
+		if (!facingknown)
+		{
+			int face = FrameMask(MissileState) | FrameMask(FindState("Attack", true)) | FrameMask(ResolveState("Pain")) | FrameMask(FindState("Pain.Alt", true));
+			int walk = FrameMask(FindState("Chase")) | FrameMask(FindState("Spawn.Stand", true)) | FrameMask(FindState("Spawn.Patrol", true)) | FrameMask(FindState("TurnAround", true));
+			facemask = face & ~walk;
+			facingknown = true;
+		}
+
+		return facemask;
+	}
+
+	// The frames shown by a run of states, following on as they play
+	static int FrameMask(State s)
+	{
+		int mask;
+		for (int n = 0; s && n < 32; n++)
+		{
+			if (s.tics != 0 && s.frame < 32) { mask |= 1 << s.frame; }
+			if (s.NextState == s) { break; }
+			s = s.NextState;
+		}
+
+		return mask;
 	}
 
 	void TargetNearestVisiblePlayer()
